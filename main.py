@@ -1,4 +1,5 @@
-import secrets
+import random
+import math
 
 def MRT(n, k=40):
     if n <= 1:
@@ -11,7 +12,7 @@ def MRT(n, k=40):
         d //= 2
         s += 1
     for _ in range(k):
-        a = secrets.randbelow(n - 3) + 2
+        a = random.randint(2, n - 2)
         x = powmod_sm(a, d, n)
         if x == 1 or x == n - 1:
             continue
@@ -22,13 +23,6 @@ def MRT(n, k=40):
         else:
             return False
     return True
-
-def generate_prime(s):
-    while True:
-        p = secrets.randbits(s)
-        p |= (1 << (s - 1)) | 1
-        if MRT(p):
-            return p
 
 def EA(a, b):
     while b != 0:
@@ -49,59 +43,66 @@ def EEA(a, b):
     else:
         return old_s % b
 
-def powmod_sm(base, exp, mod):
+def powmod_sm(base, exponent, mod):
     result = 1
     base = base % mod
-    while exp > 0:
-        if exp % 2 == 1:
+    while exponent > 0:
+        if exponent % 2 == 1:
             result = (result * base) % mod
-        exp = exp >> 1
+        exponent = exponent // 2
         base = (base * base) % mod
     return result
 
-def generate_rsa_keys():
-    s = 512
+def generate_prime(bits):
+    while True:
+        candidate = random.getrandbits(bits)
+        candidate |= (1 << (bits - 1)) | 1
+        if MRT(candidate):
+            return candidate
+
+def RSA_keygen(s):
     p = generate_prime(s)
     q = generate_prime(s)
     while p == q:
         q = generate_prime(s)
     n = p * q
-    phi_n = (p - 1) * (q - 1)
-    required_d_bits = int(0.3 * s)
+    phi = (p - 1) * (q - 1)
+    required_bits = math.ceil(0.3 * s)
     while True:
-        e = secrets.randbelow(phi_n - 2) + 2
-        if EA(e, phi_n) == 1:
-            d = EEA(e, phi_n)
-            if d is not None and d.bit_length() >= required_d_bits:
+        e = random.randint(1, phi - 1)
+        if EA(e, phi) == 1:
+            d = EEA(e, phi)
+            if d is None:
+                continue
+            if d.bit_length() >= required_bits:
                 break
-    kPub = (n, e)
-    kPr = (d, n)
-    return kPub, kPr
+    return (n, e), (d, n)
 
-def rsa_encrypt(kPub, x):
+def RSA_encrypt(kPub, x):
     n, e = kPub
     if x < 0 or x >= n:
-        raise ValueError("Plaintext must be in range [0, n-1]")
+        raise ValueError("Plaintext x must be in [0, n-1]")
     return powmod_sm(x, e, n)
 
-def rsa_decrypt(kPr, y):
+def RSA_decrypt(kPr, y):
     d, n = kPr
     return powmod_sm(y, d, n)
 
-# Example usage:
 if __name__ == "__main__":
-    kPub, kPr = generate_rsa_keys()
-    print("Public Key (n, e):", kPub)
-    print("Private Key (d, n):", kPr)
-    
-    # Example plaintext (should be less than n)
-    x = 123456789
-    print("\nOriginal plaintext:", x)
-    
-    y = rsa_encrypt(kPub, x)
-    print("Ciphertext:", y)
-    
-    x_decrypted = rsa_decrypt(kPr, y)
-    print("Decrypted plaintext:", x_decrypted)
-    
-    print("\nDecryption successful?", x == x_decrypted)
+    s = 512
+    kPub, kPr = RSA_keygen(s)
+    n, e = kPub
+    d, n_priv = kPr
+    print("Public Key (n, e):")
+    print("n =", hex(n))
+    print("e =", hex(e))
+    print("\nPrivate Key (d):")
+    print("d =", hex(d))
+    x = 0x123456789ABCDEF  # Sample plaintext (hexadecimal)
+    print("\nOriginal Plaintext (hex):", hex(x))
+    y = RSA_encrypt(kPub, x)
+    print("\nCiphertext (hex):", hex(y))
+    x_decrypted = RSA_decrypt(kPr, y)
+    print("\nDecrypted Plaintext (hex):", hex(x_decrypted))
+    assert x == x_decrypted, "Decryption failed"
+    print("\nDecryption successful!")
